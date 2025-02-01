@@ -1,16 +1,44 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
+import { fixupPluginRules } from "@eslint/compat";
+import tseslint from "typescript-eslint";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const compat = new FlatCompat();
 
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
+const compatConfig = compat.extends("next/core-web-vitals");
+
+const patchedConfig = compatConfig.map((entry) => {
+  if (entry.plugins) {
+    for (const [key, plugin] of Object.entries(entry.plugins)) {
+      entry.plugins[key] = fixupPluginRules(plugin);
+    }
+  }
+  return entry;
 });
 
-const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+const config = [
+  ...patchedConfig,
+  ...tseslint.configs.recommended,
+  {
+    files: ["**/*.ts", "**/*.tsx"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        project: "./tsconfig.json",
+        ecmaVersion: "latest",
+        sourceType: "module",
+      },
+    },
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+    },
+    rules: {
+      // Add any TypeScript-specific rules here
+    },
+  },
+  {
+    ignores: [".next/*", "out/*","node_modules/*",
+      "**/components/ui/**"]
+  },
 ];
 
-export default eslintConfig;
+export default config;

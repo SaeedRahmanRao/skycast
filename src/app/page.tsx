@@ -1,101 +1,167 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { useEffect, useState, useCallback, Suspense, lazy } from 'react';
+import { DEFAULT_COORDINATES } from '@/constants';
+import NavBar from '@/components/views/navbar';
+import WeatherDashboardSkeleton from '@/components/views/dashboard-skeleton';
+import Footer from '@/components/views/footer';
+import { ErrorBoundary } from 'react-error-boundary';
+import LocationPermissionDialog from '@/components/views/location-dialog';
+import { useWeatherData } from '@/hooks/useWeatherData';
+import { useDebounceWithComparison } from '@/hooks/useDebounceWithComparison';
+import { useCoordinatesComparison } from '@/hooks/useCoordinatesComparison';
+import { ErrorFallback } from '@/components/error-fallback';
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+// Lazy loaded component
+const WeatherDashboard = lazy(() => import('@/components/views/dashboard'));
+
+// Main Component
+export default function WeatherApp() {
+  const [coordinates, setCoordinates] = useState(DEFAULT_COORDINATES);
+  const [isManualSelection, setIsManualSelection] = useState(false);
+  const [unit] = useState<'metric' | 'imperial'>('metric');
+  const [showLocationDialog, setShowLocationDialog] = useState(true);
+  const [geolocationEnabled, setGeolocationEnabled] = useState(false);
+  const [hasInitialLoad, setHasInitialLoad] = useState(false);
+
+  const compareCoordinates = useCoordinatesComparison();
+  const debouncedCoordinates = useDebounceWithComparison(
+    coordinates,
+    500,
+    compareCoordinates,
+  );
+
+  const {
+    latitude,
+    longitude,
+    loading: locationLoading,
+    hasPermission,
+  } = useGeolocation({
+    timeout: 1000,
+    enabled: geolocationEnabled,
+  });
+
+  const { weatherData, error, isLoading, setError } = useWeatherData(
+    debouncedCoordinates,
+    locationLoading,
+    hasInitialLoad,
+  );
+
+  // Location handlers
+  const handleLocationChange = useCallback(
+    (lat: number, lon: number) => {
+      const newCoords = { lat, lon };
+      if (!compareCoordinates(coordinates, newCoords)) {
+        setIsManualSelection(true);
+        setGeolocationEnabled(false);
+        setCoordinates(newCoords);
+        setHasInitialLoad(true);
+      }
+    },
+    [coordinates, compareCoordinates],
+  );
+
+  const handleUseCurrentLocation = useCallback(() => {
+    setIsManualSelection(false);
+    setGeolocationEnabled(true);
+  }, []);
+
+  const handleLocationPermission = useCallback((allow: boolean) => {
+    setShowLocationDialog(false);
+    setGeolocationEnabled(allow);
+    setIsManualSelection(!allow);
+    if (!allow) {
+      setCoordinates(DEFAULT_COORDINATES);
+    }
+    setHasInitialLoad(true);
+  }, []);
+
+  // Update coordinates based on geolocation
+  useEffect(() => {
+    if (
+      geolocationEnabled &&
+      hasPermission &&
+      !isManualSelection &&
+      !compareCoordinates(coordinates, { lat: latitude, lon: longitude })
+    ) {
+      setCoordinates({ lat: latitude, lon: longitude });
+      setHasInitialLoad(true);
+    }
+  }, [
+    geolocationEnabled,
+    hasPermission,
+    isManualSelection,
+    latitude,
+    longitude,
+    coordinates,
+    compareCoordinates,
+  ]);
+
+  // Content renderer
+  const renderContent = useCallback(() => {
+    if (
+      showLocationDialog ||
+      (!isManualSelection && locationLoading && !hasInitialLoad)
+    ) {
+      return <WeatherDashboardSkeleton />;
+    }
+
+    if (error) {
+      return (
+        <div
+          className="flex items-center justify-center flex-1"
+          role="alert"
+          aria-live="assertive"
+        >
+          <p className="text-red-500">{error}</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      );
+    }
+
+    if (!weatherData || isLoading) {
+      return <WeatherDashboardSkeleton />;
+    }
+
+    return (
+      <Suspense fallback={<WeatherDashboardSkeleton />}>
+        <WeatherDashboard weatherData={weatherData} unit={unit} />
+      </Suspense>
+    );
+  }, [
+    showLocationDialog,
+    isManualSelection,
+    locationLoading,
+    hasInitialLoad,
+    error,
+    weatherData,
+    isLoading,
+    unit,
+  ]);
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <LocationPermissionDialog
+        open={showLocationDialog}
+        onOpenChange={setShowLocationDialog}
+        onAllowLocation={() => handleLocationPermission(true)}
+        onDenyLocation={() => handleLocationPermission(false)}
+      />
+      <ErrorBoundary
+        FallbackComponent={ErrorFallback}
+        onReset={() => {
+          setError(null);
+          handleUseCurrentLocation();
+        }}
+      >
+        <NavBar
+          onLocationChange={handleLocationChange}
+          onUseCurrentLocation={handleUseCurrentLocation}
+          isUsingCurrentLocation={!isManualSelection}
+        />
+        {renderContent()}
+        <Footer />
+      </ErrorBoundary>
     </div>
   );
 }
