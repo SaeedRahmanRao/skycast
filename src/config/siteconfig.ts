@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 
 // Site configuration
 export const siteConfig = {
-  url: 'https://weatherly18.netlify.app/',
+  url: 'https://skycast-er6c-git-main-saeed-ur-rahmnas-projects.vercel.app/',
   name: 'SkyCast',
   title: 'SkyCast: Real-Time Weather Updates & Forecasts',
   description:
@@ -33,7 +33,7 @@ export const siteConfig = {
     'weather app, weather forecast, real-time weather, air quality index, temperature tracking, weather radar, climate data, weather maps, hourly forecast, weather alerts, precipitation forecast, wind speed, humidity levels, atmospheric pressure, UV index, weather dashboard, global weather, local weather, weather visualization, meteorological data, weather conditions',
   author: 'Saeed ur Rahman',
   category: 'Weather, Forecast, Climate',
-  ogImage: 'opengraph-image.png',
+  ogImage: '/public/weather.jpg',
   icons: {
     icon: '/favicon.ico',
     apple: '/icons/apple-touch-icon.png',
